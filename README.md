@@ -46,6 +46,13 @@ scenario. The reason behind every resources and data sources are stated as below
 
 ### Resources
 
+- **st-tencentcloud_cam_user_group_attachment**
+
+  The official TencentCloud Terraform provider's resource
+  [*tencentcloud_cam_group_membership*](https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/resources/cam_group_membership)
+  will remove all other attached users for the target group, which may cause a
+  problem where Terraform may delete those users attached outside from Terraform.
+
 ### Data Sources
 
 - **st-tencentcloud_clb_load_balancers**

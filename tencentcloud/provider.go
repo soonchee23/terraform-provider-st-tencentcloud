@@ -14,12 +14,14 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 
+	tencentCloudCamClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cam/v20190116"
 	tencentCloudClbClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
 )
 
 // Wrapper of Tencent Cloud client
 type tencentCloudClients struct {
 	clbClient *tencentCloudClbClient.Client
+	camClient *tencentCloudCamClient.Client
 }
 
 // Ensure the implementation satisfies the expected interfaces
@@ -192,9 +194,21 @@ func (p *tencentCloudProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
+	camClient, err := tencentCloudCamClient.NewClient(clientCredentialsConfig, region, profile.NewClientProfile())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Tencent Cloud CAM API Client",
+			"An unexpected error occurred when creating the Tencent Cloud CAM API client. "+
+				"If the error is not clear, please contact the provider developers.\n\n"+
+				"Tencent Cloud CAM Client Error: "+err.Error(),
+		)
+		return
+	}
+
 	// Tencent Cloud clients wrapper
 	tencentCloudClients := tencentCloudClients{
 		clbClient: clbClient,
+		camClient: camClient,
 	}
 
 	resp.DataSourceData = tencentCloudClients
@@ -208,7 +222,7 @@ func (p *tencentCloudProvider) DataSources(_ context.Context) []func() datasourc
 }
 
 func (p *tencentCloudProvider) Resources(_ context.Context) []func() resource.Resource {
-	// return []func() resource.Resource{
-	// }
-	return nil
+	return []func() resource.Resource{
+		NewCamUserGroupAttachmentResource,
+	}
 }
