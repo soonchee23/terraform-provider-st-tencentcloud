@@ -53,6 +53,11 @@ scenario. The reason behind every resources and data sources are stated as below
   will remove all other attached users for the target group, which may cause a
   problem where Terraform may delete those users attached outside from Terraform.
 
+- **st-tencentcloud_enable_mfa_device**
+
+  The official TencentCloud Terraform provider does not have
+  the resource to enforce MFA for login.
+
 ### Data Sources
 
 - **st-tencentcloud_clb_load_balancers**
