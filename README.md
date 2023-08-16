@@ -62,9 +62,18 @@ scenario. The reason behind every resources and data sources are stated as below
 
 - **st-tencentcloud_clb_load_balancers**
 
-  The official TencentCloud Terraform provider's data source
-  [*tencentcloud_clb_instances*](https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/data-sources/clb_instances)
-  do not support filtering load balancers with tags.
+  - The official TencentCloud Terraform provider's data source
+    [*tencentcloud_clb_instances*](https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/data-sources/clb_instances)
+    do not support filtering load balancers with tags.
+
+  - Added client_config block to allow overriding the Provider configuration.
+
+- **st-tencentcloud_cdn_domains**
+
+  - The official TencentCloud Terraform provider's data source
+  [*tencentcloud_cdn_domains*](https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/data-sources/cdn_domains)
+  do no support querying CDN Domains from other account. This is solved by adding
+  client_config block to allow overriding the Provider configuration.
 
 References
 ----------

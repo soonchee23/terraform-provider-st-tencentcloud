@@ -13,6 +13,7 @@ import (
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/errors"
+	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 
 	tencentCloudClbClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
 )
@@ -31,6 +32,7 @@ type clbInstancesDataSource struct {
 }
 
 type clbInstancesDataSourceModel struct {
+	ClientConfig  *clientConfigWithZone     `tfsdk:"client_config"`
 	Id            types.String              `tfsdk:"id"`
 	Name          types.String              `tfsdk:"name"`
 	Tags          types.Map                 `tfsdk:"tags"`
@@ -86,6 +88,33 @@ func (d *clbInstancesDataSource) Schema(ctx context.Context, req datasource.Sche
 				},
 			},
 		},
+		Blocks: map[string]schema.Block{
+			"client_config": schema.SingleNestedBlock{
+				Description: "Config to override default client created in Provider. " +
+					"This block will not be recorded in state file.",
+				Attributes: map[string]schema.Attribute{
+					"region": schema.StringAttribute{
+						Description: "The region of the CLBs. Default to use region " +
+							"configured in the provider.",
+						Optional: true,
+					},
+					"zone": schema.StringAttribute{
+						Description: "The zone of TencentCloud CLBs.",
+						Optional:    true,
+					},
+					"secret_id": schema.StringAttribute{
+						Description: "The secret id that have permissions to list " +
+							"CLBs. Default to use secret id configured in the provider.",
+						Optional: true,
+					},
+					"secret_key": schema.StringAttribute{
+						Description: "The secret key that have permissions to list " +
+							"CLBs. Default to use secret key configured in the provider.",
+						Optional: true,
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -97,15 +126,35 @@ func (d *clbInstancesDataSource) Configure(ctx context.Context, req datasource.C
 }
 
 func (d *clbInstancesDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var plan *clbInstancesDataSourceModel
+	var plan, state *clbInstancesDataSourceModel
 	getPlanDiags := req.Config.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
 	if getPlanDiags.HasError() {
 		return
 	}
 
-	state := &clbInstancesDataSourceModel{}
-	state.LoadBalancers = []*clbLoadBalancersDetail{}
+	if plan.ClientConfig == nil {
+		plan.ClientConfig = &clientConfigWithZone{}
+	}
+
+	initClient, clientConfig := initNewClient(&d.client.Client, plan.ClientConfig.getClientConfig())
+	if initClient {
+		var err error
+		d.client, err = tencentCloudClbClient.NewClient(clientConfig.credential, clientConfig.region, profile.NewClientProfile())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Unable to Reinitialize Tencent Cloud Load Balancers API Client",
+				"An unexpected error occurred when creating the Tencent Cloud Load Balancers API client. "+
+					"If the error is not clear, please contact the provider developers.\n\n"+
+					"Tencent Cloud Load Balancers Client Error: "+err.Error(),
+			)
+			return
+		}
+	}
+
+	state = &clbInstancesDataSourceModel{
+		LoadBalancers: []*clbLoadBalancersDetail{},
+	}
 	state.Id = plan.Id
 	state.Name = plan.Name
 	state.Tags = plan.Tags
@@ -142,6 +191,19 @@ func (d *clbInstancesDataSource) Read(ctx context.Context, req datasource.ReadRe
 		}
 
 		describeLoadBalancersRequest.Filters = filterList
+	}
+
+	if plan.ClientConfig.Zone.ValueString() != "" {
+		zoneId, err := getZoneId(&d.client.Client, plan.ClientConfig.Zone.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"[API ERROR] Failed to Get Zone ID",
+				"This is an error in provider. Please contact provider developer\n\n"+
+					"Error: "+err.Error(),
+			)
+			return
+		}
+		describeLoadBalancersRequest.MasterZone = common.StringPtr(zoneId)
 	}
 
 	describeLb := func() error {

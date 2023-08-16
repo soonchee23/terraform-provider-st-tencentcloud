@@ -15,6 +15,7 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 
 	tencentCloudCamClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cam/v20190116"
+	tencentCloudCdnClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn/v20180606"
 	tencentCloudClbClient "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
 )
 
@@ -22,6 +23,7 @@ import (
 type tencentCloudClients struct {
 	clbClient *tencentCloudClbClient.Client
 	camClient *tencentCloudCamClient.Client
+	cdnClient *tencentCloudCdnClient.Client
 }
 
 // Ensure the implementation satisfies the expected interfaces
@@ -205,10 +207,21 @@ func (p *tencentCloudProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
+	cdnClient, err := tencentCloudCdnClient.NewClient(clientCredentialsConfig, region, profile.NewClientProfile())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Tencent Cloud CDN API Client",
+			"An unexpected error occurred when creating the Tencent Cloud CDN API client. "+
+				"If the error is not clear, please contact the provider developers.\n\n"+
+				"Tencent Cloud CDN Client Error: "+err.Error(),
+		)
+	}
+
 	// Tencent Cloud clients wrapper
 	tencentCloudClients := tencentCloudClients{
 		clbClient: clbClient,
 		camClient: camClient,
+		cdnClient: cdnClient,
 	}
 
 	resp.DataSourceData = tencentCloudClients
@@ -218,6 +231,7 @@ func (p *tencentCloudProvider) Configure(ctx context.Context, req provider.Confi
 func (p *tencentCloudProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewClbInstancesDataSource,
+		NewCdnDomainsDataSource,
 	}
 }
 

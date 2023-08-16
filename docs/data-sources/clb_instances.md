@@ -26,6 +26,7 @@ data "st-tencentcloud_clb_instances" "clbs" {
 
 ### Optional
 
+- `client_config` (Block, Optional) Config to override default client created in Provider. This block will not be recorded in state file. (see [below for nested schema](#nestedblock--client_config))
 - `id` (String) ID of Cloud Load Balancers to query
 - `name` (String) Name of Cloud Load Balancers to query
 - `tags` (Map of String) Tags of Cloud Load Balancers to query
@@ -33,6 +34,17 @@ data "st-tencentcloud_clb_instances" "clbs" {
 ### Read-Only
 
 - `load_balancers` (Attributes List) Result list of Cloud Load Balancers queried (see [below for nested schema](#nestedatt--load_balancers))
+
+<a id="nestedblock--client_config"></a>
+### Nested Schema for `client_config`
+
+Optional:
+
+- `region` (String) The region of the CLBs. Default to use region configured in the provider.
+- `secret_id` (String) The secret id that have permissions to list CLBs. Default to use secret id configured in the provider.
+- `secret_key` (String) The secret key that have permissions to list CLBs. Default to use secret key configured in the provider.
+- `zone` (String) The zone of TencentCloud CLBs.
+
 
 <a id="nestedatt--load_balancers"></a>
 ### Nested Schema for `load_balancers`

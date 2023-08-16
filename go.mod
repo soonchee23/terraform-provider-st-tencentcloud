@@ -6,8 +6,11 @@ require github.com/hashicorp/terraform-plugin-framework v1.1.1
 
 require (
 	github.com/hashicorp/terraform-plugin-docs v0.14.1
+	github.com/hashicorp/terraform-plugin-framework-validators v0.10.0
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cdn v1.0.683
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.0.614
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.618
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.683
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.683
 )
 
 require (
