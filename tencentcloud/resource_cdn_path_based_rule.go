@@ -73,10 +73,6 @@ func (r *cdnPathBasedRuleResource) Schema(_ context.Context, _ resource.SchemaRe
 						"origin_type": schema.StringAttribute{
 							Description: "Domain name.",
 							Optional:    true,
-						},
-						"server_name": schema.StringAttribute{
-							Description: "Server name.",
-							Optional:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOf(
 									"domain",
@@ -100,6 +96,10 @@ func (r *cdnPathBasedRuleResource) Schema(_ context.Context, _ resource.SchemaRe
 									"image",
 									"ftp"),
 							},
+						},
+						"server_name": schema.StringAttribute{
+							Description: "Server name.",
+							Optional:    true,
 						},
 					},
 					Blocks: map[string]schema.Block{
@@ -230,6 +230,10 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 		return
 	}
 
+	/*The Origin List, Origin Type, and Server Name need to be specified again, as they are part of the
+	tencentcloud_cdn_domains resource in the Tencent Cloud Terraform provider. This is necessary because
+	the path-based rule is nested within the origin configuration, and it's important to associate the
+	path-based rule with the correct origin*/
 	origin := state.Origin[0]
 	outerOrigins := make([]string, len(origin.Origins.Elements()))
 
@@ -238,6 +242,9 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 		outerOrigins[i] = strings.Trim(originStr.ValueString(), "\"")
 	}
 
+	/*The reason for using UpdateDomainConfig is that Tencent Cloud only provides this api to remove
+	path-based rules; they have a separate DeleteScdnDomain function exclusively for deleting an entire
+	domain name.*/
 	deleteDomainConfigRequest := tencentCloudCdnClient.NewUpdateDomainConfigRequest()
 	deleteDomainConfigRequest.Domain = common.StringPtr(state.DomainName.ValueString())
 	deleteDomainConfigRequest.Origin = &tencentCloudCdnClient.Origin{
@@ -250,6 +257,8 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 			return origin.ServerName.ValueString()
 		}()),
 	}
+
+	deleteDomainConfigRequest.Origin.PathBasedOrigin = nil
 
 	if _, err := r.client.UpdateDomainConfig(deleteDomainConfigRequest); err != nil {
 		resp.Diagnostics.AddError(
@@ -282,6 +291,7 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 		return false, nil
 	}
 
+	// If the status of the domain name is not 'online', the destruction process will fail
 	timeout := 15 * time.Minute
 	startTime := time.Now()
 
