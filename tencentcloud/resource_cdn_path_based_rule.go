@@ -31,18 +31,18 @@ type cdnPathBasedRuleResource struct {
 }
 
 type cdnPathBasedRuleResourceModel struct {
-	DomainName types.String    `tfsdk:"domain"`
-	Origin     []*originStruct `tfsdk:"origin"`
+	DomainName types.String `tfsdk:"domain"`
+	Origin     []*origin    `tfsdk:"origin"`
 }
 
-type originStruct struct {
-	Origins       types.List             `tfsdk:"origin_list"`
-	OriginType    types.String           `tfsdk:"origin_type"`
-	ServerName    types.String           `tfsdk:"server_name"`
-	PathBasedrule []*pathBasedRuleStruct `tfsdk:"path_based_rule"`
+type origin struct {
+	Origins       types.List       `tfsdk:"origin_list"`
+	OriginType    types.String     `tfsdk:"origin_type"`
+	ServerName    types.String     `tfsdk:"server_name"`
+	PathBasedRule []*pathBasedRule `tfsdk:"path_based_rule"`
 }
 
-type pathBasedRuleStruct struct {
+type pathBasedRule struct {
 	RuleType  types.String `tfsdk:"rule_type"`
 	RulePaths types.List   `tfsdk:"rule_paths"`
 	Origin    types.List   `tfsdk:"origin"`
@@ -157,12 +157,7 @@ func (r *cdnPathBasedRuleResource) Create(ctx context.Context, req resource.Crea
 		return
 	}
 
-	state := &cdnPathBasedRuleResourceModel{
-		DomainName: plan.DomainName,
-		Origin:     plan.Origin,
-	}
-
-	setStateDiags := resp.State.Set(ctx, &state)
+	setStateDiags := resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(setStateDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -222,108 +217,6 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 	}
 }
 
-func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state *cdnPathBasedRuleResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	/*The Origin List, Origin Type, and Server Name need to be specified again, as they are part of the
-	tencentcloud_cdn_domains resource in the Tencent Cloud Terraform provider. This is necessary because
-	the path-based rule is nested within the origin configuration, and it's important to associate the
-	path-based rule with the correct origin*/
-	origin := state.Origin[0]
-	outerOrigins := make([]string, len(origin.Origins.Elements()))
-
-	for i, o := range origin.Origins.Elements() {
-		originStr := o.(types.String)
-		outerOrigins[i] = strings.Trim(originStr.ValueString(), "\"")
-	}
-
-	/*The reason for using UpdateDomainConfig is that Tencent Cloud only provides this api to remove
-	path-based rules; they have a separate DeleteScdnDomain function exclusively for deleting an entire
-	domain name.*/
-	deleteDomainConfigRequest := tencentCloudCdnClient.NewUpdateDomainConfigRequest()
-	deleteDomainConfigRequest.Domain = common.StringPtr(state.DomainName.ValueString())
-	deleteDomainConfigRequest.Origin = &tencentCloudCdnClient.Origin{
-		Origins:    common.StringPtrs(outerOrigins),
-		OriginType: common.StringPtr(origin.OriginType.ValueString()),
-		ServerName: common.StringPtr(func() string {
-			if origin.ServerName.ValueString() == "" {
-				return state.DomainName.ValueString()
-			}
-			return origin.ServerName.ValueString()
-		}()),
-	}
-
-	deleteDomainConfigRequest.Origin.PathBasedOrigin = nil
-
-	if _, err := r.client.UpdateDomainConfig(deleteDomainConfigRequest); err != nil {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Delete CDN Domain",
-			err.Error(),
-		)
-		return
-	}
-
-	decribeDomainsConfig := tencentCloudCdnClient.NewDescribeDomainsConfigRequest()
-	decribeDomainsConfig.Filters = []*tencentCloudCdnClient.DomainFilter{
-		{
-			Name:  common.StringPtr("domain"),
-			Value: common.StringPtrs([]string{state.DomainName.ValueString()}),
-		},
-	}
-
-	checkStatus := func() (bool, error) {
-		response, err := r.client.DescribeDomainsConfig(decribeDomainsConfig)
-		if err != nil {
-			return false, err
-		}
-
-		if len(response.Response.Domains) > 0 {
-			status := response.Response.Domains[0].Status
-			if status != nil && *status == "online" {
-				return true, nil
-			}
-		}
-		return false, nil
-	}
-
-	// If the status of the domain name is not 'online', the destruction process will fail
-	timeout := 15 * time.Minute
-	startTime := time.Now()
-
-	for {
-		isOnline, err := checkStatus()
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"[API ERROR] Error checking CDN domain status",
-				err.Error(),
-			)
-			return
-		}
-
-		if isOnline {
-			fmt.Println("Domain status is online.")
-			break
-		}
-
-		if time.Since(startTime) > timeout {
-			resp.Diagnostics.AddError(
-				"[TIMEOUT] Timed out waiting for domain status to become online",
-				"Reached the maximum timeout of 15 minutes.",
-			)
-			return
-		}
-
-		time.Sleep(30 * time.Second)
-	}
-
-	resp.State.RemoveResource(ctx)
-}
-
 func (r *cdnPathBasedRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan *cdnPathBasedRuleResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
@@ -340,73 +233,60 @@ func (r *cdnPathBasedRuleResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	state := &cdnPathBasedRuleResourceModel{}
-	state.DomainName = plan.DomainName
-	state.Origin = plan.Origin
-
-	setStateDiags := resp.State.Set(ctx, &state)
+	setStateDiags := resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(setStateDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 }
 
+func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state *cdnPathBasedRuleResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	/*The reason for using UpdateDomainConfig is that Tencent Cloud only provides this API to remove
+	path-based rules; they have a separate DeleteScdnDomain function exclusively for deleting an entire
+	domain name.*/
+	deleteDomainConfigRequest, err := buildUpdateDomainConfigRequest(state)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"[ERROR] Failed to build CDN domain config",
+			err.Error(),
+		)
+		return
+	}
+
+	deleteDomainConfigRequest.Origin.PathBasedOrigin = nil
+
+	if _, err := r.client.UpdateDomainConfig(deleteDomainConfigRequest); err != nil {
+		resp.Diagnostics.AddError(
+			"[API ERROR] Failed to Delete CDN Domain",
+			err.Error(),
+		)
+		return
+	}
+
+	err = waitForCDNDomainStatus(r.client, state.DomainName.ValueString(), 15*time.Minute)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"[TIMEOUT] Timed out waiting for domain status to become online",
+			err.Error(),
+		)
+		return
+	}
+
+	resp.State.RemoveResource(ctx)
+}
+
 func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleResourceModel) error {
-	updateDomainConfigRequest := tencentCloudCdnClient.NewUpdateDomainConfigRequest()
-	if updateDomainConfigRequest == nil {
-		return fmt.Errorf("failed to create a new UpdateDomainConfigRequest")
+	updateDomainConfigRequest, err := buildUpdateDomainConfigRequest(plan)
+	if err != nil {
+		return fmt.Errorf("failed to build domain config: %w", err)
 	}
-
-	if plan.DomainName.ValueString() == "" {
-		return fmt.Errorf("domain name cannot be empty")
-	}
-
-	for _, origin := range plan.Origin {
-		outerOrigins := make([]string, len(origin.Origins.Elements()))
-		for i, o := range origin.Origins.Elements() {
-			outerOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
-		}
-
-		updateDomainConfigRequest.Domain = common.StringPtr(plan.DomainName.ValueString())
-		updateDomainConfigRequest.Origin = &tencentCloudCdnClient.Origin{
-			Origins:    common.StringPtrs(outerOrigins),
-			OriginType: common.StringPtr(origin.OriginType.ValueString()),
-			ServerName: common.StringPtr(func() string {
-				if origin.ServerName.ValueString() == "" {
-					return plan.DomainName.ValueString()
-				}
-				return origin.ServerName.ValueString()
-			}()),
-		}
-
-		var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
-
-		for _, pathBasedRule := range origin.PathBasedrule {
-			rulePaths := make([]string, len(pathBasedRule.RulePaths.Elements()))
-			for i, rp := range pathBasedRule.RulePaths.Elements() {
-				rulePaths[i] = strings.Trim(rp.(types.String).ValueString(), "\"")
-			}
-
-			innerOrigins := make([]string, len(pathBasedRule.Origin.Elements()))
-			for i, o := range pathBasedRule.Origin.Elements() {
-				innerOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
-			}
-
-			if len(rulePaths) == 0 || len(innerOrigins) == 0 {
-				return fmt.Errorf("both rule paths and origins must be provided")
-			}
-
-			pathBasedOriginRules = append(pathBasedOriginRules, &tencentCloudCdnClient.PathBasedOriginRule{
-				RuleType:  common.StringPtr(pathBasedRule.RuleType.ValueString()),
-				RulePaths: common.StringPtrs(rulePaths),
-				Origin:    common.StringPtrs(innerOrigins),
-			})
-		}
-
-		updateDomainConfigRequest.Origin.PathBasedOrigin = pathBasedOriginRules
-	}
-
-	updateDomainConfigRequest.ProjectId = common.Int64Ptr(0)
 
 	updateDomainConfig := func() error {
 		_, err := d.client.UpdateDomainConfig(updateDomainConfigRequest)
@@ -421,21 +301,89 @@ func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleReso
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
 	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	err := backoff.Retry(updateDomainConfig, reconnectBackoff)
+	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
 	if err != nil {
 		return fmt.Errorf("failed to update domain config: %w", err)
 	}
 
+	err = waitForCDNDomainStatus(d.client, plan.DomainName.ValueString(), 15*time.Minute)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tencentCloudCdnClient.UpdateDomainConfigRequest, error) {
+	if plan.DomainName.ValueString() == "" {
+		return nil, fmt.Errorf("domain name cannot be empty")
+	}
+
+	updateDomainConfigRequest := tencentCloudCdnClient.NewUpdateDomainConfigRequest()
+	updateDomainConfigRequest.Domain = common.StringPtr(plan.DomainName.ValueString())
+
+	for _, origin := range plan.Origin {
+		mainOrigins := make([]string, len(origin.Origins.Elements()))
+		for i, o := range origin.Origins.Elements() {
+			mainOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
+		}
+
+		var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
+
+		for _, pathBasedRule := range origin.PathBasedRule {
+			rulePaths := make([]string, len(pathBasedRule.RulePaths.Elements()))
+			for i, rp := range pathBasedRule.RulePaths.Elements() {
+				rulePaths[i] = strings.Trim(rp.(types.String).ValueString(), "\"")
+			}
+
+			pathOrigins := make([]string, len(pathBasedRule.Origin.Elements()))
+			for i, o := range pathBasedRule.Origin.Elements() {
+				pathOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
+			}
+
+			if len(rulePaths) == 0 || len(pathOrigins) == 0 {
+				return nil, fmt.Errorf("both rule paths and origins must be provided")
+			}
+
+			pathBasedOriginRules = append(pathBasedOriginRules, &tencentCloudCdnClient.PathBasedOriginRule{
+				RuleType:  common.StringPtr(pathBasedRule.RuleType.ValueString()),
+				RulePaths: common.StringPtrs(rulePaths),
+				Origin:    common.StringPtrs(pathOrigins),
+			})
+		}
+
+		/*The Origin List, Origin Type, and Server Name need to be specified again, as they are part of the
+		tencentcloud_cdn_domains resource in the Tencent Cloud Terraform provider. This is necessary because
+		the path-based rule is nested within the origin configuration, and it's important to associate the
+		path-based rule with the correct origin.*/
+		updateDomainConfigRequest.Origin = &tencentCloudCdnClient.Origin{
+			Origins:    common.StringPtrs(mainOrigins),
+			OriginType: common.StringPtr(origin.OriginType.ValueString()),
+			ServerName: common.StringPtr(func() string {
+				if origin.ServerName.ValueString() == "" {
+					return plan.DomainName.ValueString()
+				}
+				return origin.ServerName.ValueString()
+			}()),
+			PathBasedOrigin: pathBasedOriginRules,
+		}
+	}
+
+	updateDomainConfigRequest.ProjectId = common.Int64Ptr(0)
+	return updateDomainConfigRequest, nil
+}
+
+func waitForCDNDomainStatus(client *tencentCloudCdnClient.Client, domainName string, timeout time.Duration) error {
 	decribeDomainsConfig := tencentCloudCdnClient.NewDescribeDomainsConfigRequest()
 	decribeDomainsConfig.Filters = []*tencentCloudCdnClient.DomainFilter{
 		{
 			Name:  common.StringPtr("domain"),
-			Value: common.StringPtrs([]string{plan.DomainName.ValueString()}),
+			Value: common.StringPtrs([]string{domainName}),
 		},
 	}
 
 	checkStatus := func() (bool, error) {
-		response, err := d.client.DescribeDomainsConfig(decribeDomainsConfig)
+		response, err := client.DescribeDomainsConfig(decribeDomainsConfig)
 		if err != nil {
 			return false, err
 		}
@@ -449,7 +397,6 @@ func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleReso
 		return false, nil
 	}
 
-	timeout := 15 * time.Minute
 	startTime := time.Now()
 
 	for {
@@ -459,7 +406,6 @@ func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleReso
 		}
 
 		if isOnline {
-			fmt.Println("Domain is now online.")
 			break
 		}
 
