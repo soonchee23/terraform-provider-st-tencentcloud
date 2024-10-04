@@ -33,3 +33,6 @@ override.tf.json
 
 # Visual Studio code
 .vscode
+
+# Binary
+bin
