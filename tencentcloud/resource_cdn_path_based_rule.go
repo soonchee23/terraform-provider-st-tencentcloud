@@ -173,7 +173,6 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 	}
 
 	describeDomainsConfigRequest := tencentCloudCdnClient.NewDescribeDomainsConfigRequest()
-
 	if !(state.DomainName.IsUnknown() || state.DomainName.IsNull()) {
 		describeDomainsConfigRequest.Filters = []*tencentCloudCdnClient.DomainFilter{
 			{
@@ -261,7 +260,6 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 	}
 
 	deleteDomainConfigRequest.Origin.PathBasedOrigin = nil
-
 	if _, err := r.client.UpdateDomainConfig(deleteDomainConfigRequest); err != nil {
 		resp.Diagnostics.AddError(
 			"[API ERROR] Failed to Delete CDN Domain",
@@ -329,7 +327,6 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tence
 		}
 
 		var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
-
 		for _, pathBasedRule := range origin.PathBasedRule {
 			rulePaths := make([]string, len(pathBasedRule.RulePaths.Elements()))
 			for i, rp := range pathBasedRule.RulePaths.Elements() {
@@ -398,7 +395,6 @@ func waitForCDNDomainStatus(client *tencentCloudCdnClient.Client, domainName str
 	}
 
 	startTime := time.Now()
-
 	for {
 		isOnline, err := checkStatus()
 		if err != nil {
