@@ -31,18 +31,18 @@ type cdnPathBasedRuleResource struct {
 }
 
 type cdnPathBasedRuleResourceModel struct {
-	DomainName types.String `tfsdk:"domain"`
-	Origin     []*originStruct   `tfsdk:"origin"`
+	DomainName types.String    `tfsdk:"domain"`
+	Origin     []*originStruct `tfsdk:"origin"`
 }
 
 type originStruct struct {
-	Origins       types.List       `tfsdk:"origin_list"`
-	OriginType    types.String     `tfsdk:"origin_type"`
-	ServerName    types.String     `tfsdk:"server_name"`
-	PathBasedrule []*pathbasedrule `tfsdk:"path_based_rule"`
+	Origins       types.List             `tfsdk:"origin_list"`
+	OriginType    types.String           `tfsdk:"origin_type"`
+	ServerName    types.String           `tfsdk:"server_name"`
+	PathBasedrule []*pathBasedRuleStruct `tfsdk:"path_based_rule"`
 }
 
-type pathbasedrule struct {
+type pathBasedRuleStruct struct {
 	RuleType  types.String `tfsdk:"rule_type"`
 	RulePaths types.List   `tfsdk:"rule_paths"`
 	Origin    types.List   `tfsdk:"origin"`
