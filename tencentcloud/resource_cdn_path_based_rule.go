@@ -32,10 +32,10 @@ type cdnPathBasedRuleResource struct {
 
 type cdnPathBasedRuleResourceModel struct {
 	DomainName types.String `tfsdk:"domain"`
-	Origin     []*originn   `tfsdk:"origin"`
+	Origin     []*originStruct   `tfsdk:"origin"`
 }
 
-type originn struct {
+type originStruct struct {
 	Origins       types.List       `tfsdk:"origin_list"`
 	OriginType    types.String     `tfsdk:"origin_type"`
 	ServerName    types.String     `tfsdk:"server_name"`
