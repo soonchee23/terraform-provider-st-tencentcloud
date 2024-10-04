@@ -177,10 +177,10 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	describeCdnDataRequest := tencentCloudCdnClient.NewDescribeDomainsConfigRequest()
+	describeDomainsConfigRequest := tencentCloudCdnClient.NewDescribeDomainsConfigRequest()
 
 	if !(state.DomainName.IsUnknown() || state.DomainName.IsNull()) {
-		describeCdnDataRequest.Filters = []*tencentCloudCdnClient.DomainFilter{
+		describeDomainsConfigRequest.Filters = []*tencentCloudCdnClient.DomainFilter{
 			{
 				Name:  common.StringPtr("domain"),
 				Value: common.StringPtrs([]string{state.DomainName.String()}),
@@ -188,8 +188,8 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 		}
 	}
 
-	describeCdnData := func() error {
-		_, err := r.client.DescribeDomainsConfig(describeCdnDataRequest)
+	describeDomainsConfig := func() error {
+		_, err := r.client.DescribeDomainsConfig(describeDomainsConfigRequest)
 		if err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
 				if isAbleToRetry(t.GetCode()) {
@@ -206,7 +206,7 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
 	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	err := backoff.Retry(describeCdnData, reconnectBackoff)
+	err := backoff.Retry(describeDomainsConfig, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"[API ERROR] Failed to Describe CDN.",
