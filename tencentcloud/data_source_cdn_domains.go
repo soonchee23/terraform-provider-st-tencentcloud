@@ -461,7 +461,7 @@ func (d *cdnDomainsDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
 
 	err := backoff.Retry(describeCdnDomain, reconnectBackoff)
 	if err != nil {
