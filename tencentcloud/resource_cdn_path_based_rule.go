@@ -276,8 +276,6 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 		)
 		return
 	}
-
-	resp.State.RemoveResource(ctx)
 }
 
 func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleResourceModel) error {
