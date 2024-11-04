@@ -148,31 +148,31 @@ func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.Sc
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"regex": schema.BoolAttribute{
-										Description: "Whether to configure DingTalk notifications. Valid values: true, false.",
+										Description: "A pattern used to search, replace, or validate parts of a string.",
 										Required:    true,
 									},
 									"path": schema.StringAttribute{
-										Description: "List of rule paths for origin.",
+										Description: "Matched URL paths only support URL paths and do not support parameters. The default is exact matching; when wildcard “*” matching is enabled, it supports up to 5 wildcards with a maximum length of 1024 characters.",
 										Required:    true,
 									},
 									"origin": schema.StringAttribute{
-										Description: "Type of the rule for origin.",
+										Description: "The origin site for path matching does not currently support COS sources with private read/write access. If not specified, the default origin site will be used.",
 										Optional:    true,
 									},
 									"server_name": schema.StringAttribute{
-										Description: "Type of the rule for origin.",
+										Description: "The Host header for the origin during path matching. If not specified, the default ServerName will be used.",
 										Required:    true,
 									},
 									"origin_area": schema.StringAttribute{
-										Description: "Type of the rule for origin.",
+										Description: "The region of the origin site, supporting CN and OV.",
 										Required:    true,
 									},
 									"forward_uri": schema.StringAttribute{
-										Description: "Type of the rule for origin.",
+										Description: "The URI path for the origin during path matching must start with “/” and cannot include parameters.",
 										Required:    true,
 									},
 									"full_match": schema.BoolAttribute{
-										Description: "Whether to configure DingTalk notifications. Valid values: true, false.",
+										Description: "Ensures the entire string exactly matches a given pattern, with no extra characters.",
 										Required:    true,
 									},
 								},
