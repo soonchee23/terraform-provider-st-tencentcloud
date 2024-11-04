@@ -440,10 +440,8 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 						- /products?category=electronics
 					- Does not match:
 						- /product-list
-
-			所以为什么不能同时是false或则true
-			 ****会跟support 再确认****
 			*/
+			
 			if pathRule.FullMatch.ValueBool() == pathRule.Regex.ValueBool() {
 				return nil, fmt.Errorf("either FullMatch or Regex must be true, but not both; please ensure that one of them is true and the other is false")
 			}
