@@ -18,41 +18,59 @@ import (
 )
 
 var (
-	_ resource.Resource              = &cdnPathBasedRuleResource{}
-	_ resource.ResourceWithConfigure = &cdnPathBasedRuleResource{}
+	_ resource.Resource              = &cdnPathBasedOriginRuleResource{}
+	_ resource.ResourceWithConfigure = &cdnPathBasedOriginRuleResource{}
 )
 
-func NewCdnPathBasedRuleResource() resource.Resource {
-	return &cdnPathBasedRuleResource{}
+func NewCdnPathBasedOriginRuleResource() resource.Resource {
+	return &cdnPathBasedOriginRuleResource{}
 }
 
-type cdnPathBasedRuleResource struct {
+type cdnPathBasedOriginRuleResource struct {
 	client *tencentCloudCdnClient.Client
 }
 
-type cdnPathBasedRuleResourceModel struct {
+type cdnPathBasedOriginRuleResourceModel struct {
 	DomainName types.String `tfsdk:"domain"`
 	Origin     []*origin    `tfsdk:"origin"`
 }
 
 type origin struct {
-	Origins       types.List       `tfsdk:"origin_list"`
-	OriginType    types.String     `tfsdk:"origin_type"`
-	ServerName    types.String     `tfsdk:"server_name"`
-	PathBasedRule []*pathBasedRule `tfsdk:"path_based_rule"`
+	Origins             types.List             `tfsdk:"origin_list"`
+	OriginType          types.String           `tfsdk:"origin_type"`
+	ServerName          types.String           `tfsdk:"server_name"`
+	PathBasedOriginRule []*pathBasedOriginRule `tfsdk:"path_based_origin_rule"`
+	PathRules           []*pathRules           `tfsdk:"path_rules"`
 }
 
-type pathBasedRule struct {
+type pathBasedOriginRule struct {
 	RuleType  types.String `tfsdk:"rule_type"`
 	RulePaths types.List   `tfsdk:"rule_paths"`
 	Origin    types.List   `tfsdk:"origin"`
 }
 
-func (r *cdnPathBasedRuleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_cdn_path_based_rule"
+type pathRules struct {
+	Regex          types.Bool        `tfsdk:"regex"`
+	Path           types.String      `tfsdk:"path"`
+	Origin         types.String      `tfsdk:"origin"`
+	ServerName     types.String      `tfsdk:"server_name"`
+	OriginArea     types.String      `tfsdk:"origin_area"`
+	ForwardUri     types.String      `tfsdk:"forward_uri"`
+	FullMatch      types.Bool        `tfsdk:"full_match"`
+	RequestHeaders []*httpHeaderRule `tfsdk:"request_headers"`
 }
 
-func (r *cdnPathBasedRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+type httpHeaderRule struct {
+	HeaderMode  types.String `tfsdk:"header_mode"`
+	HeaderName  types.String `tfsdk:"header_name"`
+	HeaderValue types.String `tfsdk:"header_value"`
+}
+
+func (r *cdnPathBasedOriginRuleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cdn_path_based_origin_rule"
+}
+
+func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Provides a TencentCloud Path-Based Rule resource.",
 		Attributes: map[string]schema.Attribute{
@@ -103,24 +121,79 @@ func (r *cdnPathBasedRuleResource) Schema(_ context.Context, _ resource.SchemaRe
 						},
 					},
 					Blocks: map[string]schema.Block{
-						"path_based_rule": schema.ListNestedBlock{
+						"path_based_origin_rule": schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
-									"origin": schema.ListAttribute{
-										ElementType: types.StringType,
-										Description: "List of origin servers.",
+									"rule_type": schema.StringAttribute{
+										Description: "Type of the rule for origin.",
 										Required:    true,
+										Validators: []validator.String{
+											stringvalidator.OneOf("file", "directory", "path", "index"),
+										},
 									},
 									"rule_paths": schema.ListAttribute{
 										ElementType: types.StringType,
 										Description: "List of rule paths for origin.",
 										Required:    true,
 									},
-									"rule_type": schema.StringAttribute{
+									"origin": schema.ListAttribute{
+										ElementType: types.StringType,
+										Description: "List of origin servers.",
+										Required:    true,
+									},
+								},
+							},
+						},
+						"path_rules": schema.ListNestedBlock{
+							NestedObject: schema.NestedBlockObject{
+								Attributes: map[string]schema.Attribute{
+									"regex": schema.BoolAttribute{
+										Description: "Whether to configure DingTalk notifications. Valid values: true, false.",
+										Required:    true,
+									},
+									"path": schema.StringAttribute{
+										Description: "List of rule paths for origin.",
+										Required:    true,
+									},
+									"origin": schema.StringAttribute{
+										Description: "Type of the rule for origin.",
+										Optional:    true,
+									},
+									"server_name": schema.StringAttribute{
 										Description: "Type of the rule for origin.",
 										Required:    true,
-										Validators: []validator.String{
-											stringvalidator.OneOf("file", "directory", "path", "index"),
+									},
+									"origin_area": schema.StringAttribute{
+										Description: "Type of the rule for origin.",
+										Required:    true,
+									},
+									"forward_uri": schema.StringAttribute{
+										Description: "Type of the rule for origin.",
+										Required:    true,
+									},
+									"full_match": schema.BoolAttribute{
+										Description: "Whether to configure DingTalk notifications. Valid values: true, false.",
+										Required:    true,
+									},
+								},
+								Blocks: map[string]schema.Block{
+									"request_headers": schema.SetNestedBlock{
+										Description: "The alert notification methods. See the following Block alert_config.",
+										NestedObject: schema.NestedBlockObject{
+											Attributes: map[string]schema.Attribute{
+												"header_mode": schema.StringAttribute{
+													Description: "List of rule paths for origin.",
+													Optional:    true,
+												},
+												"header_name": schema.StringAttribute{
+													Description: "List of rule paths for origin.",
+													Optional:    true,
+												},
+												"header_value": schema.StringAttribute{
+													Description: "List of rule paths for origin.",
+													Optional:    true,
+												},
+											},
 										},
 									},
 								},
@@ -133,15 +206,15 @@ func (r *cdnPathBasedRuleResource) Schema(_ context.Context, _ resource.SchemaRe
 	}
 }
 
-func (r *cdnPathBasedRuleResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *cdnPathBasedOriginRuleResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
 	r.client = req.ProviderData.(tencentCloudClients).cdnClient
 }
 
-func (r *cdnPathBasedRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan cdnPathBasedRuleResourceModel
+func (r *cdnPathBasedOriginRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan cdnPathBasedOriginRuleResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
 	if resp.Diagnostics.HasError() {
@@ -164,8 +237,8 @@ func (r *cdnPathBasedRuleResource) Create(ctx context.Context, req resource.Crea
 	}
 }
 
-func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state *cdnPathBasedRuleResourceModel
+func (r *cdnPathBasedOriginRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state *cdnPathBasedOriginRuleResourceModel
 	getStateDiags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(getStateDiags...)
 	if resp.Diagnostics.HasError() {
@@ -216,8 +289,8 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 	}
 }
 
-func (r *cdnPathBasedRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *cdnPathBasedRuleResourceModel
+func (r *cdnPathBasedOriginRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan *cdnPathBasedOriginRuleResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
 	if resp.Diagnostics.HasError() {
@@ -239,8 +312,8 @@ func (r *cdnPathBasedRuleResource) Update(ctx context.Context, req resource.Upda
 	}
 }
 
-func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state *cdnPathBasedRuleResourceModel
+func (r *cdnPathBasedOriginRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state *cdnPathBasedOriginRuleResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -280,7 +353,7 @@ func (r *cdnPathBasedRuleResource) Delete(ctx context.Context, req resource.Dele
 	resp.State.RemoveResource(ctx)
 }
 
-func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleResourceModel) error {
+func (d *cdnPathBasedOriginRuleResource) updateDomainConfig(plan *cdnPathBasedOriginRuleResourceModel) error {
 	updateDomainConfigRequest, err := buildUpdateDomainConfigRequest(plan)
 	if err != nil {
 		return fmt.Errorf("failed to build domain config: %w", err)
@@ -312,7 +385,7 @@ func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleReso
 	return nil
 }
 
-func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tencentCloudCdnClient.UpdateDomainConfigRequest, error) {
+func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (*tencentCloudCdnClient.UpdateDomainConfigRequest, error) {
 	if plan.DomainName.ValueString() == "" {
 		return nil, fmt.Errorf("domain name cannot be empty")
 	}
@@ -327,14 +400,14 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tence
 		}
 
 		var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
-		for _, pathBasedRule := range origin.PathBasedRule {
-			rulePaths := make([]string, len(pathBasedRule.RulePaths.Elements()))
-			for i, rp := range pathBasedRule.RulePaths.Elements() {
+		for _, pathBasedOriginRule := range origin.PathBasedOriginRule {
+			rulePaths := make([]string, len(pathBasedOriginRule.RulePaths.Elements()))
+			for i, rp := range pathBasedOriginRule.RulePaths.Elements() {
 				rulePaths[i] = strings.Trim(rp.(types.String).ValueString(), "\"")
 			}
 
-			pathOrigins := make([]string, len(pathBasedRule.Origin.Elements()))
-			for i, o := range pathBasedRule.Origin.Elements() {
+			pathOrigins := make([]string, len(pathBasedOriginRule.Origin.Elements()))
+			for i, o := range pathBasedOriginRule.Origin.Elements() {
 				pathOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
 			}
 
@@ -343,9 +416,68 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tence
 			}
 
 			pathBasedOriginRules = append(pathBasedOriginRules, &tencentCloudCdnClient.PathBasedOriginRule{
-				RuleType:  common.StringPtr(pathBasedRule.RuleType.ValueString()),
+				RuleType:  common.StringPtr(pathBasedOriginRule.RuleType.ValueString()),
 				RulePaths: common.StringPtrs(rulePaths),
 				Origin:    common.StringPtrs(pathOrigins),
+			})
+		}
+
+		var pathRules []*tencentCloudCdnClient.PathRule
+		for _, pathRule := range origin.PathRules {
+
+			/*暂时理解的是full match & regex 只可以是相反的，不能同时是false或则true
+			原因如下：
+			1. Full Path Matching is meant to match a single, specific URL exactly as written.
+				Full Path Matching Rule: /products
+					- Matches:
+						- /products
+
+					- Does not match:
+						- /products?category=electronics (because it includes a query string)
+
+			2. Regex Matching allows for patterns and variability, matching multiple potential URLs that fit a defined pattern.
+				Regex Matching Rule: ^/products(\?.*)?$
+					- Matches:
+						- /products
+						- /products?category=electronics
+					- Does not match:
+						- /product-list
+
+			所以为什么不能同时是false或则true
+			 ****会跟support 再确认****
+			*/
+			if pathRule.FullMatch.ValueBool() == pathRule.Regex.ValueBool() {
+				return nil, fmt.Errorf("either FullMatch or Regex must be true, but not both; please ensure that one of them is true and the other is false")
+			}
+
+			var originValue *string
+			if pathRule.Origin.ValueString() == "" {
+				originValue = nil
+			} else {
+				originValue = common.StringPtr(pathRule.Origin.ValueString())
+			}
+
+			var requestHeaders []*tencentCloudCdnClient.HttpHeaderRule
+			for _, header := range pathRule.RequestHeaders {
+				if header.HeaderMode.ValueString() == "" && header.HeaderName.ValueString() == "" && header.HeaderValue.ValueString() == "" {
+					continue
+				}
+				requestHeaders = append(requestHeaders, &tencentCloudCdnClient.HttpHeaderRule{
+					HeaderMode:  common.StringPtr(header.HeaderMode.ValueString()),
+					HeaderName:  common.StringPtr(header.HeaderName.ValueString()),
+					HeaderValue: common.StringPtr(header.HeaderValue.ValueString()),
+				})
+			}
+
+			pathRules = append(pathRules, &tencentCloudCdnClient.PathRule{
+				Path:           common.StringPtr(pathRule.Path.ValueString()),
+				Origin:         originValue,
+				ServerName:     common.StringPtr(pathRule.ServerName.ValueString()),
+				OriginArea:     common.StringPtr(pathRule.OriginArea.ValueString()),
+				ForwardUri:     common.StringPtr(pathRule.ForwardUri.ValueString()),
+				RequestHeaders: requestHeaders,
+				Regex:          common.BoolPtr(pathRule.Regex.ValueBool()),
+				FullMatch:      common.BoolPtr(pathRule.FullMatch.ValueBool()),
 			})
 		}
 
@@ -363,6 +495,7 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedRuleResourceModel) (*tence
 				return origin.ServerName.ValueString()
 			}()),
 			PathBasedOrigin: pathBasedOriginRules,
+			PathRules:       pathRules,
 		}
 	}
 
