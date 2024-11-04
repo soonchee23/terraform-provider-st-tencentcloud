@@ -423,7 +423,7 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 		var pathRules []*tencentCloudCdnClient.PathRule
 		for _, pathRule := range origin.PathRules {
 
-			/*暂时理解的是full match & regex 只可以是相反的，不能同时是false或则true
+			/*full match & regex 只可以是相反的，不能同时是false或则true
 			原因如下：
 			1. Full Path Matching is meant to match a single, specific URL exactly as written.
 				Full Path Matching Rule: /products
@@ -441,7 +441,7 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 					- Does not match:
 						- /product-list
 			*/
-			
+
 			if pathRule.FullMatch.ValueBool() == pathRule.Regex.ValueBool() {
 				return nil, fmt.Errorf("either FullMatch or Regex must be true, but not both; please ensure that one of them is true and the other is false")
 			}
