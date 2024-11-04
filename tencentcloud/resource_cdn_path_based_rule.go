@@ -349,8 +349,6 @@ func (r *cdnPathBasedOriginRuleResource) Delete(ctx context.Context, req resourc
 		)
 		return
 	}
-
-	resp.State.RemoveResource(ctx)
 }
 
 func (d *cdnPathBasedOriginRuleResource) updateDomainConfig(plan *cdnPathBasedOriginRuleResourceModel) error {
