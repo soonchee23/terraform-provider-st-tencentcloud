@@ -18,38 +18,38 @@ import (
 )
 
 var (
-	_ resource.Resource              = &cdnPathBasedOriginRuleResource{}
-	_ resource.ResourceWithConfigure = &cdnPathBasedOriginRuleResource{}
+	_ resource.Resource              = &cdndomainConfigResource{}
+	_ resource.ResourceWithConfigure = &cdndomainConfigResource{}
 )
 
-func NewCdnPathBasedOriginRuleResource() resource.Resource {
-	return &cdnPathBasedOriginRuleResource{}
+func NewCdnDomainConfigResource() resource.Resource {
+	return &cdndomainConfigResource{}
 }
 
-type cdnPathBasedOriginRuleResource struct {
+type cdndomainConfigResource struct {
 	client *tencentCloudCdnClient.Client
 }
 
-type cdnPathBasedOriginRuleResourceModel struct {
+type cdndomainConfigResourceModel struct {
 	DomainName types.String `tfsdk:"domain"`
 	Origin     []*origin    `tfsdk:"origin"`
 }
 
 type origin struct {
-	Origins             types.List             `tfsdk:"origin_list"`
-	OriginType          types.String           `tfsdk:"origin_type"`
-	ServerName          types.String           `tfsdk:"server_name"`
-	PathBasedOriginRule []*pathBasedOriginRule `tfsdk:"path_based_origin_rule"`
-	PathRules           []*pathRules           `tfsdk:"path_rules"`
+	Origins                types.List                `tfsdk:"origin_list"`
+	OriginType             types.String              `tfsdk:"origin_type"`
+	ServerName             types.String              `tfsdk:"server_name"`
+	ConditionalOriginRules []*conditionalOriginRules `tfsdk:"conditional_origin_rules"`
+	RewriteUrls            []*rewriteUrls            `tfsdk:"rewrite_urls"`
 }
 
-type pathBasedOriginRule struct {
+type conditionalOriginRules struct {
 	RuleType  types.String `tfsdk:"rule_type"`
 	RulePaths types.List   `tfsdk:"rule_paths"`
-	Origin    types.List   `tfsdk:"origin"`
+	Origin    types.String `tfsdk:"origin"`
 }
 
-type pathRules struct {
+type rewriteUrls struct {
 	Regex          types.Bool        `tfsdk:"regex"`
 	Path           types.String      `tfsdk:"path"`
 	Origin         types.String      `tfsdk:"origin"`
@@ -66,11 +66,11 @@ type httpHeaderRule struct {
 	HeaderValue types.String `tfsdk:"header_value"`
 }
 
-func (r *cdnPathBasedOriginRuleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_cdn_path_based_origin_rule"
+func (r *cdndomainConfigResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_cdn_domain_config"
 }
 
-func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *cdndomainConfigResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Provides a TencentCloud Path-Based Rule resource.",
 		Attributes: map[string]schema.Attribute{
@@ -121,9 +121,18 @@ func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.Sc
 						},
 					},
 					Blocks: map[string]schema.Block{
-						"path_based_origin_rule": schema.ListNestedBlock{
+						"conditional_origin_rules": schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
+									"origin": schema.StringAttribute{
+										Description: "List of origin servers.",
+										Required:    true,
+									},
+									"rule_paths": schema.ListAttribute{
+										ElementType: types.StringType,
+										Description: "List of rule paths for origin.",
+										Required:    true,
+									},
 									"rule_type": schema.StringAttribute{
 										Description: "Type of the rule for origin.",
 										Required:    true,
@@ -131,20 +140,10 @@ func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.Sc
 											stringvalidator.OneOf("file", "directory", "path", "index"),
 										},
 									},
-									"rule_paths": schema.ListAttribute{
-										ElementType: types.StringType,
-										Description: "List of rule paths for origin.",
-										Required:    true,
-									},
-									"origin": schema.ListAttribute{
-										ElementType: types.StringType,
-										Description: "List of origin servers.",
-										Required:    true,
-									},
 								},
 							},
 						},
-						"path_rules": schema.ListNestedBlock{
+						"rewrite_urls": schema.ListNestedBlock{
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"regex": schema.BoolAttribute{
@@ -182,15 +181,15 @@ func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.Sc
 										NestedObject: schema.NestedBlockObject{
 											Attributes: map[string]schema.Attribute{
 												"header_mode": schema.StringAttribute{
-													Description: "List of rule paths for origin.",
+													Description: "The HTTP header configuration supports three methods: add, set, and del, which respectively mean adding a new header, setting (or modifying) an existing header, and deleting a header.",
 													Optional:    true,
 												},
 												"header_name": schema.StringAttribute{
-													Description: "List of rule paths for origin.",
+													Description: "HTTP header name.",
 													Optional:    true,
 												},
 												"header_value": schema.StringAttribute{
-													Description: "List of rule paths for origin.",
+													Description: "HTTP header value.",
 													Optional:    true,
 												},
 											},
@@ -206,15 +205,15 @@ func (r *cdnPathBasedOriginRuleResource) Schema(_ context.Context, _ resource.Sc
 	}
 }
 
-func (r *cdnPathBasedOriginRuleResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
+func (r *cdndomainConfigResource) Configure(ctx context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
 	r.client = req.ProviderData.(tencentCloudClients).cdnClient
 }
 
-func (r *cdnPathBasedOriginRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan cdnPathBasedOriginRuleResourceModel
+func (r *cdndomainConfigResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+	var plan cdndomainConfigResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
 	if resp.Diagnostics.HasError() {
@@ -237,8 +236,8 @@ func (r *cdnPathBasedOriginRuleResource) Create(ctx context.Context, req resourc
 	}
 }
 
-func (r *cdnPathBasedOriginRuleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state *cdnPathBasedOriginRuleResourceModel
+func (r *cdndomainConfigResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state *cdndomainConfigResourceModel
 	getStateDiags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(getStateDiags...)
 	if resp.Diagnostics.HasError() {
@@ -272,7 +271,7 @@ func (r *cdnPathBasedOriginRuleResource) Read(ctx context.Context, req resource.
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
 	err := backoff.Retry(describeDomainsConfig, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -289,8 +288,8 @@ func (r *cdnPathBasedOriginRuleResource) Read(ctx context.Context, req resource.
 	}
 }
 
-func (r *cdnPathBasedOriginRuleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan *cdnPathBasedOriginRuleResourceModel
+func (r *cdndomainConfigResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan *cdndomainConfigResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
 	if resp.Diagnostics.HasError() {
@@ -312,8 +311,8 @@ func (r *cdnPathBasedOriginRuleResource) Update(ctx context.Context, req resourc
 	}
 }
 
-func (r *cdnPathBasedOriginRuleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state *cdnPathBasedOriginRuleResourceModel
+func (r *cdndomainConfigResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state *cdndomainConfigResourceModel
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -341,6 +340,7 @@ func (r *cdnPathBasedOriginRuleResource) Delete(ctx context.Context, req resourc
 		return
 	}
 
+	/*This update is intended to remove the resource; therefore, it is necessary to wait until the domain is online. Otherwise, an error will occur during terraform destroy.*/
 	err = waitForCDNDomainStatus(r.client, state.DomainName.ValueString(), 15*time.Minute)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -351,7 +351,7 @@ func (r *cdnPathBasedOriginRuleResource) Delete(ctx context.Context, req resourc
 	}
 }
 
-func (d *cdnPathBasedOriginRuleResource) updateDomainConfig(plan *cdnPathBasedOriginRuleResourceModel) error {
+func (d *cdndomainConfigResource) updateDomainConfig(plan *cdndomainConfigResourceModel) error {
 	updateDomainConfigRequest, err := buildUpdateDomainConfigRequest(plan)
 	if err != nil {
 		return fmt.Errorf("failed to build domain config: %w", err)
@@ -369,7 +369,7 @@ func (d *cdnPathBasedOriginRuleResource) updateDomainConfig(plan *cdnPathBasedOr
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
 	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
 	if err != nil {
 		return fmt.Errorf("failed to update domain config: %w", err)
@@ -383,7 +383,7 @@ func (d *cdnPathBasedOriginRuleResource) updateDomainConfig(plan *cdnPathBasedOr
 	return nil
 }
 
-func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (*tencentCloudCdnClient.UpdateDomainConfigRequest, error) {
+func buildUpdateDomainConfigRequest(plan *cdndomainConfigResourceModel) (*tencentCloudCdnClient.UpdateDomainConfigRequest, error) {
 	if plan.DomainName.ValueString() == "" {
 		return nil, fmt.Errorf("domain name cannot be empty")
 	}
@@ -398,15 +398,18 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 		}
 
 		var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
-		for _, pathBasedOriginRule := range origin.PathBasedOriginRule {
-			rulePaths := make([]string, len(pathBasedOriginRule.RulePaths.Elements()))
-			for i, rp := range pathBasedOriginRule.RulePaths.Elements() {
+		for _, conditionalOriginRules := range origin.ConditionalOriginRules {
+			rulePaths := make([]string, len(conditionalOriginRules.RulePaths.Elements()))
+			for i, rp := range conditionalOriginRules.RulePaths.Elements() {
 				rulePaths[i] = strings.Trim(rp.(types.String).ValueString(), "\"")
 			}
 
-			pathOrigins := make([]string, len(pathBasedOriginRule.Origin.Elements()))
-			for i, o := range pathBasedOriginRule.Origin.Elements() {
-				pathOrigins[i] = strings.Trim(o.(types.String).ValueString(), "\"")
+			pathOriginStr := conditionalOriginRules.Origin.ValueString()         // Get the string value
+			pathOrigins := strings.Split(strings.Trim(pathOriginStr, "\""), ",") // Split by comma or other delimiter
+
+			// Trim each element if necessary
+			for i := range pathOrigins {
+				pathOrigins[i] = strings.TrimSpace(pathOrigins[i])
 			}
 
 			if len(rulePaths) == 0 || len(pathOrigins) == 0 {
@@ -414,14 +417,14 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 			}
 
 			pathBasedOriginRules = append(pathBasedOriginRules, &tencentCloudCdnClient.PathBasedOriginRule{
-				RuleType:  common.StringPtr(pathBasedOriginRule.RuleType.ValueString()),
+				RuleType:  common.StringPtr(conditionalOriginRules.RuleType.ValueString()),
 				RulePaths: common.StringPtrs(rulePaths),
 				Origin:    common.StringPtrs(pathOrigins),
 			})
 		}
 
-		var pathRules []*tencentCloudCdnClient.PathRule
-		for _, pathRule := range origin.PathRules {
+		var rewriteUrls []*tencentCloudCdnClient.PathRule
+		for _, pathRule := range origin.RewriteUrls {
 
 			/*full match & regex 只可以是相反的，不能同时是false或则true
 			原因如下：
@@ -465,7 +468,7 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 				})
 			}
 
-			pathRules = append(pathRules, &tencentCloudCdnClient.PathRule{
+			rewriteUrls = append(rewriteUrls, &tencentCloudCdnClient.PathRule{
 				Path:           common.StringPtr(pathRule.Path.ValueString()),
 				Origin:         originValue,
 				ServerName:     common.StringPtr(pathRule.ServerName.ValueString()),
@@ -491,7 +494,7 @@ func buildUpdateDomainConfigRequest(plan *cdnPathBasedOriginRuleResourceModel) (
 				return origin.ServerName.ValueString()
 			}()),
 			PathBasedOrigin: pathBasedOriginRules,
-			PathRules:       pathRules,
+			PathRules:       rewriteUrls,
 		}
 	}
 

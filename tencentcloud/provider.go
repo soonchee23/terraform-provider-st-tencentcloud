@@ -239,6 +239,6 @@ func (p *tencentCloudProvider) Resources(_ context.Context) []func() resource.Re
 	return []func() resource.Resource{
 		NewCamUserGroupAttachmentResource,
 		NewCamMfaDeviceResource,
-		NewCdnPathBasedOriginRuleResource,
+		NewCdnDomainConfigResource,
 	}
 }
