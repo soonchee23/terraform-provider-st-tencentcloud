@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	_ resource.Resource              = &cdndomainConfigResource{}
-	_ resource.ResourceWithConfigure = &cdndomainConfigResource{}
+	_ resource.Resource               = &cdndomainConfigResource{}
+	_ resource.ResourceWithConfigure  = &cdndomainConfigResource{}
+	_ resource.ResourceWithModifyPlan = &cdndomainConfigResource{}
 )
 
 func NewCdnDomainConfigResource() resource.Resource {
@@ -81,16 +82,17 @@ func (r *cdndomainConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 		},
 		Blocks: map[string]schema.Block{
 			"origin": schema.ListNestedBlock{
+				Description: "Origin Configuration.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"origin_list": schema.ListAttribute{
 							ElementType: types.StringType,
 							Description: "List of rule paths for origin.",
-							Optional:    true,
+							Required:    true,
 						},
 						"origin_type": schema.StringAttribute{
 							Description: "Domain name.",
-							Optional:    true,
+							Required:    true,
 							Validators: []validator.String{
 								stringvalidator.OneOf(
 									"domain",
@@ -122,6 +124,7 @@ func (r *cdndomainConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 					},
 					Blocks: map[string]schema.Block{
 						"conditional_origin_rules": schema.ListNestedBlock{
+							Description: "Path-based Origin Configuration.",
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"origin": schema.StringAttribute{
@@ -144,6 +147,7 @@ func (r *cdndomainConfigResource) Schema(_ context.Context, _ resource.SchemaReq
 							},
 						},
 						"rewrite_urls": schema.ListNestedBlock{
+							Description: "Origin Path Rewrite Rule Configuration.",
 							NestedObject: schema.NestedBlockObject{
 								Attributes: map[string]schema.Attribute{
 									"regex": schema.BoolAttribute{
@@ -351,6 +355,42 @@ func (r *cdndomainConfigResource) Delete(ctx context.Context, req resource.Delet
 	}
 }
 
+func (r *cdndomainConfigResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		fmt.Println("Plan is null; skipping ModifyPlan.")
+		return
+	}
+
+	// Retrieve the planned state into a cdndomainConfigResourceModel structure
+	var plan cdndomainConfigResourceModel
+	getPlanDiags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(getPlanDiags...)
+	if resp.Diagnostics.HasError() {
+		fmt.Println("Error retrieving the plan.")
+		return
+	}
+
+	for originIndex, origin := range plan.Origin {
+		fmt.Printf("Origin %d: %+v\n", originIndex+1, origin)
+		for urlIndex, urlConfig := range origin.RewriteUrls {
+			fmt.Printf("Checking rewrite_urls %d in origin %d - FullMatch: %v, Regex: %v\n",
+				urlIndex+1, originIndex+1, urlConfig.FullMatch.ValueBool(), urlConfig.Regex.ValueBool())
+
+			// Check if FullMatch and Regex are the same (either both true or both false)
+			if urlConfig.FullMatch.ValueBool() == urlConfig.Regex.ValueBool() {
+				errMsg := fmt.Sprintf(
+					"Validation Error in origin %d, rewrite_urls %d: either FullMatch or Regex must be true, but not both or neither.",
+					originIndex+1, urlIndex+1,
+				)
+				resp.Diagnostics.AddError("Validation Error", errMsg)
+				fmt.Println(errMsg)
+				return
+			}
+		}
+	}
+}
+
 func (d *cdndomainConfigResource) updateDomainConfig(plan *cdndomainConfigResourceModel) error {
 	updateDomainConfigRequest, err := buildUpdateDomainConfigRequest(plan)
 	if err != nil {
@@ -404,10 +444,9 @@ func buildUpdateDomainConfigRequest(plan *cdndomainConfigResourceModel) (*tencen
 				rulePaths[i] = strings.Trim(rp.(types.String).ValueString(), "\"")
 			}
 
-			pathOriginStr := conditionalOriginRules.Origin.ValueString()         // Get the string value
-			pathOrigins := strings.Split(strings.Trim(pathOriginStr, "\""), ",") // Split by comma or other delimiter
+			pathOriginStr := conditionalOriginRules.Origin.ValueString()
+			pathOrigins := strings.Split(strings.Trim(pathOriginStr, "\""), ",")
 
-			// Trim each element if necessary
 			for i := range pathOrigins {
 				pathOrigins[i] = strings.TrimSpace(pathOrigins[i])
 			}
