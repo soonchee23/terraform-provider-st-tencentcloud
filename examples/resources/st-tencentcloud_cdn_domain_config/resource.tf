@@ -2,7 +2,7 @@ resource "st-tencentcloud_cdn_domain_config" "cdn_path_based_rule" {
   domain = var.tencent_cloud_cdn.domain_name
 
   origin {
-    origin_list = ["47.239.216.145"]
+    origin_list = ["google.com"]
     origin_type = "ip"
 
     conditional_origin_rules {

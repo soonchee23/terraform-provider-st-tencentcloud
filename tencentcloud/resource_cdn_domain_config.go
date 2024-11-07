@@ -380,7 +380,7 @@ func (r *cdndomainConfigResource) ModifyPlan(ctx context.Context, req resource.M
 			// Check if FullMatch and Regex are the same (either both true or both false)
 			if urlConfig.FullMatch.ValueBool() == urlConfig.Regex.ValueBool() {
 				errMsg := fmt.Sprintf(
-					"Validation Error in origin %d, rewrite_urls %d: either FullMatch or Regex must be true, but not both or neither.",
+					"Validation Error in origin %d, rewrite_urls %d: either FullMatch or Regex must be true, but not both; please ensure that one of them is true and the other is false.",
 					originIndex+1, urlIndex+1,
 				)
 				resp.Diagnostics.AddError("Validation Error", errMsg)
