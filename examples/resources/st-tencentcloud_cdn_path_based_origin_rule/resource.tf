@@ -1,17 +1,18 @@
-resource "st-tencentcloud_cdn_domain_config" "cdn_path_based_rule" {
-  domain = var.tencent_cloud_cdn.domain_name
+resource "st-tencentcloud_path_based_origin_rule" "cdn_path_based_origin_rule" {
+  domain = "public.example.com"
 
   origin {
     origin_list = ["google.com"]
     origin_type = "ip"
+    origin_pull_protocol = "follow"
 
-    conditional_origin_rules {
+    path_based_origin_rule {
       rule_type  = "directory"
       origin     = "public-324.oss-cn-hongkong.aliyuns.com"
       rule_paths = ["/oss"]
     }
 
-    rewrite_urls {
+    rewrite_path_rule {
       path        = "/oss/*"
       server_name = "public-324.oss-cn-hongkong.aliyuns.com"
       origin_area = "CN"
