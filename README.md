@@ -58,8 +58,9 @@ scenario. The reason behind every resources and data sources are stated as below
   The official TencentCloud Terraform provider does not have
   the resource to enforce MFA for login.
 
-- **st-tencentcloud_cdn_path_based_origin_rule**
-  The official TencentCloud Terraform provider's resource (https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/resources/cdn_domain)
+- **st-tencentcloud_cdn_conditional_origin**
+
+  The official TencentCloud Terraform provider's resource  [*tencentcloud_cdn_domain*](https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/resources/cdn_domain)
   does not support adding path based origin rule and path rule in CDN.
 
 ### Data Sources
