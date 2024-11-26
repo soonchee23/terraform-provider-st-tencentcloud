@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -18,9 +19,10 @@ import (
 )
 
 var (
-	_ resource.Resource               = &cdnConditionalOriginResource{}
-	_ resource.ResourceWithConfigure  = &cdnConditionalOriginResource{}
-	_ resource.ResourceWithModifyPlan = &cdnConditionalOriginResource{}
+	_     resource.Resource               = &cdnConditionalOriginResource{}
+	_     resource.ResourceWithConfigure  = &cdnConditionalOriginResource{}
+	_     resource.ResourceWithModifyPlan = &cdnConditionalOriginResource{}
+	mutex sync.Mutex
 )
 
 func NewCdnConditionalOriginResource() resource.Resource {
@@ -53,9 +55,14 @@ func (r *cdnConditionalOriginResource) Metadata(ctx context.Context, req resourc
 	resp.TypeName = req.ProviderTypeName + "_cdn_conditional_origin"
 }
 
+/*
+The use of blocks helps to reduce waiting time. If a separate resource is created for each rule, it would significantly
+increase the overall time required, as each resource must wait until the domain name's status becomes "online" before it
+can be created. Otherwise, an error would occur, indicating that the domain being configured cannot be modified.
+*/
 func (r *cdnConditionalOriginResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Provides a TencentCloud Path-Based Rule resource.",
+		Description: "Provides a TencentCloud conditional origin resource.",
 		Attributes: map[string]schema.Attribute{
 			"domain": schema.StringAttribute{
 				Description: "Domain name.",
@@ -64,11 +71,11 @@ func (r *cdnConditionalOriginResource) Schema(_ context.Context, _ resource.Sche
 		},
 		Blocks: map[string]schema.Block{
 			"rule": schema.SetNestedBlock{
-				Description: "Configuration of rules.",
+				Description: "Configuration of rule.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"origin": schema.StringAttribute{
-							Description: "Origin.",
+							Description: "Address of the origin server from which the CDN retrieves content when it is not cached.",
 							Required:    true,
 						},
 						"rule_type": schema.StringAttribute{
@@ -79,7 +86,7 @@ func (r *cdnConditionalOriginResource) Schema(_ context.Context, _ resource.Sche
 							},
 						},
 						"rule_path": schema.StringAttribute{
-							Description: "Rule path.",
+							Description: "Rule path that specifies conditions under which the CDN retrieves content from a designated origin address.",
 							Required:    true,
 						},
 					},
@@ -107,7 +114,7 @@ func (r *cdnConditionalOriginResource) Create(ctx context.Context, req resource.
 	err := r.updateDomainConfig(&plan)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to update path based origin rule",
+			"[API ERROR] Failed to Create Conditional Origin.",
 			err.Error(),
 		)
 		return
@@ -119,7 +126,10 @@ func (r *cdnConditionalOriginResource) Create(ctx context.Context, req resource.
 		return
 	}
 
-	/*This update is intended to remove the resource; therefore, it is necessary to wait until the domain is online. Otherwise, an error will occur during terraform destroy.*/
+	/*
+		This update is intended to remove the resource; therefore, it is necessary to wait until the domain is online.
+		Otherwise, an error will occur during terraform destroy.
+	*/
 	err = waitForCDNDomainStatus(r.client, plan.DomainName.ValueString(), 15*time.Minute)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -164,7 +174,7 @@ func (r *cdnConditionalOriginResource) Read(ctx context.Context, req resource.Re
 	err := backoff.Retry(describeDomainsConfig, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Describe CDN.",
+			"[API ERROR] Failed to Describe Conditional Origin.",
 			err.Error(),
 		)
 		return
@@ -187,7 +197,7 @@ func (r *cdnConditionalOriginResource) Update(ctx context.Context, req resource.
 
 	if err := r.updateDomainConfig(plan); err != nil {
 		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to update CDN configuration.",
+			"[API ERROR] Failed to update Conditional Origin.",
 			fmt.Sprintf("Error: %s. Request payload: %+v", err.Error(), plan),
 		)
 		return
@@ -217,33 +227,25 @@ func (r *cdnConditionalOriginResource) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	// Debug log to check if originTest is empty
-	fmt.Printf("[DEBUG] originTest: %+v\n", originTest)
-
-	// Build delete request ignoring originTest if it's empty
 	deleteConditionalOriginRequest, err := buildConditionalOriginRequest(state, originTest)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"[ERROR] Failed to build CDN path-based origin rule",
+			"[ERROR] Failed to build CDN confitional origin.",
 			err.Error(),
 		)
 		return
 	}
 
-	// Set PathBasedOrigin and PathRules to nil regardless of originTest
 	deleteConditionalOriginRequest.Origin.PathBasedOrigin = nil
 	deleteConditionalOriginRequest.Origin.PathRules = nil
-
-	// Call API to update domain config
 	if _, err := r.client.UpdateDomainConfig(deleteConditionalOriginRequest); err != nil {
 		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to delete CDN domain",
+			"[API ERROR] Failed to delete Conditional Origin.",
 			err.Error(),
 		)
 		return
 	}
 
-	// Wait for the domain status to become online
 	err = waitForCDNDomainStatus(r.client, state.DomainName.ValueString(), 15*time.Minute)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -255,13 +257,12 @@ func (r *cdnConditionalOriginResource) Delete(ctx context.Context, req resource.
 }
 
 func (r *cdnConditionalOriginResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
 		fmt.Println("Plan is null; skipping ModifyPlan.")
 		return
 	}
 
-	// Retrieve the planned state into a cdnConditionalOriginResourceModel structure
+	// Retrieve the planned state into a CdnConditionalOriginResourceModel structure
 	var plan cdnConditionalOriginResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
@@ -280,18 +281,15 @@ func (r *cdnConditionalOriginResource) ModifyPlan(ctx context.Context, req resou
 }
 
 func (d *cdnConditionalOriginResource) updateDomainConfig(plan *cdnConditionalOriginResourceModel) error {
-	resp := &resource.DeleteResponse{} // Create a placeholder DeleteResponse object
+	resp := &resource.DeleteResponse{}
 	originTest, fetchErr := fetchAndMapDomainConfig(d, plan, resp)
 	if fetchErr != nil {
 		return fmt.Errorf("failed to fetch and map domain configuration: %w", fetchErr)
 	}
 
-	// Use the fetched `originList` as needed (e.g., logging or validation)
-	fmt.Printf("Fetched origins: %+v\n", originTest)
-
 	updateDomainConfigRequest, err := buildConditionalOriginRequest(plan, originTest)
 	if err != nil {
-		return fmt.Errorf("failed to build path based origin rule: %w", err)
+		return fmt.Errorf("failed to build conditional origin: %w", err)
 	}
 
 	updateDomainConfig := func() error {
@@ -309,7 +307,7 @@ func (d *cdnConditionalOriginResource) updateDomainConfig(plan *cdnConditionalOr
 	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
 	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
 	if err != nil {
-		return fmt.Errorf("failed to update path based origin rule: %w", err)
+		return fmt.Errorf("failed to update conditional origin: %w", err)
 	}
 
 	err = waitForCDNDomainStatus(d.client, plan.DomainName.ValueString(), 15*time.Minute)
@@ -330,7 +328,7 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 	updateConditionalOriginRequest.ProjectId = common.Int64Ptr(0)
 
 	var pathBasedOriginRules []*tencentCloudCdnClient.PathBasedOriginRule
-	var rewritePathRules []*tencentCloudCdnClient.PathRule
+	var pathRule []*tencentCloudCdnClient.PathRule
 
 	for _, rule := range plan.Rule {
 		ruleList := strings.Split(strings.Trim(rule.RulePath.ValueString(), "\""), ",")
@@ -353,7 +351,7 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 			formattedPath := "/*." + rule.RulePath.ValueString()
 			formattedForwardUri := "/$1." + rule.RulePath.ValueString()
 
-			rewritePathRules = append(rewritePathRules, &tencentCloudCdnClient.PathRule{
+			pathRule = append(pathRule, &tencentCloudCdnClient.PathRule{
 				Path:       common.StringPtr(formattedPath),
 				ServerName: common.StringPtr(rule.Origin.ValueString()),
 				ForwardUri: common.StringPtr(formattedForwardUri),
@@ -365,7 +363,7 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 			formattedPath := rule.RulePath.ValueString() + "/*"
 			formattedForwardUri := rule.RulePath.ValueString() + "/$1"
 
-			rewritePathRules = append(rewritePathRules, &tencentCloudCdnClient.PathRule{
+			pathRule = append(pathRule, &tencentCloudCdnClient.PathRule{
 				Path:       common.StringPtr(formattedPath),
 				ServerName: common.StringPtr(rule.Origin.ValueString()),
 				ForwardUri: common.StringPtr(formattedForwardUri),
@@ -374,7 +372,7 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 			})
 
 		} else if rule.RuleType.ValueString() == "path" {
-			rewritePathRules = append(rewritePathRules, &tencentCloudCdnClient.PathRule{
+			pathRule = append(pathRule, &tencentCloudCdnClient.PathRule{
 				Path:       common.StringPtr(rule.RulePath.ValueString()),
 				ServerName: common.StringPtr(rule.Origin.ValueString()),
 				ForwardUri: common.StringPtr(rule.RulePath.ValueString()),
@@ -390,7 +388,7 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 		OriginPullProtocol: common.StringPtr(originTest[0].OriginPullProtocol.ValueString()),
 		ServerName:         common.StringPtr(plan.DomainName.ValueString()),
 		PathBasedOrigin:    pathBasedOriginRules,
-		PathRules:          rewritePathRules,
+		PathRules:          pathRule,
 	}
 
 	return updateConditionalOriginRequest, nil
@@ -449,6 +447,9 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 
 	response := tencentCloudCdnClient.NewDescribeDomainsConfigResponse()
 	describeCdnDomain := func() error {
+		mutex.Lock()
+		defer mutex.Unlock()
+
 		var err error
 		response, err = d.client.DescribeDomainsConfig(request)
 		if err != nil {
@@ -471,7 +472,7 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 	err := backoff.Retry(describeCdnDomain, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Describe Load Balancers",
+			"[API ERROR] Failed to Describe Conditional Origin.",
 			err.Error(),
 		)
 		return nil, err
@@ -480,7 +481,7 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 	var result []originStruct
 	for _, domain := range response.Response.Domains {
 		origin := originStruct{
-			OriginList:         types.StringValue(convertOriginsToString(domain.Origin.Origins)),
+			OriginList:         types.StringValue(convertStringPointersToString(domain.Origin.Origins)),
 			OriginType:         types.StringValue(*domain.Origin.OriginType),
 			ServerName:         types.StringValue(*domain.Origin.ServerName),
 			OriginPullProtocol: types.StringValue(*domain.Origin.OriginPullProtocol),
@@ -489,15 +490,4 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 	}
 
 	return result, nil
-}
-
-// Helper function to convert []*string to a single string
-func convertOriginsToString(origins []*string) string {
-	var result []string
-	for _, origin := range origins {
-		if origin != nil {
-			result = append(result, *origin)
-		}
-	}
-	return strings.Join(result, ",") // Join with a comma or any delimiter you prefer
 }

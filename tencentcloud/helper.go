@@ -1,6 +1,8 @@
 package tencentcloud
 
 import (
+	"strings"
+
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -18,6 +20,16 @@ func convertListStringtoListType(input []*string) basetypes.ListValue {
 		newAttr = append(newAttr, types.StringValue(*x))
 	}
 	return types.ListValueMust(types.StringType, newAttr)
+}
+
+func convertStringPointersToString(origins []*string) string {
+	var result []string
+	for _, origin := range origins {
+		if origin != nil {
+			result = append(result, *origin)
+		}
+	}
+	return strings.Join(result, ",") // Join with a comma or any delimiter you prefer
 }
 
 ////////////////////////////// TencentCloud Regions/Zones Related //////////////////////////////
