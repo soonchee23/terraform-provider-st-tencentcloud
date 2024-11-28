@@ -262,7 +262,6 @@ func (r *cdnConditionalOriginResource) ModifyPlan(ctx context.Context, req resou
 		return
 	}
 
-	// Retrieve the planned state into a CdnConditionalOriginResourceModel structure
 	var plan cdnConditionalOriginResourceModel
 	getPlanDiags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(getPlanDiags...)
@@ -276,6 +275,55 @@ func (r *cdnConditionalOriginResource) ModifyPlan(ctx context.Context, req resou
 		resp.Diagnostics.AddError("Validation Error", errMsg)
 		fmt.Println(errMsg)
 		return
+	}
+
+	for i, rule := range plan.Rule {
+		ruleType := rule.RuleType.ValueString()
+		rulePath := rule.RulePath.ValueString()
+
+		if ruleType == "file" {
+			if strings.HasPrefix(rulePath, "/") || strings.HasPrefix(rulePath, ".") {
+				errMsg := fmt.Sprintf(
+					"Validation Error in rule[%d]: When 'rule_type' is 'file', 'rule_path' cannot start with '/' or '.'. Got: %s",
+					i, rulePath,
+				)
+				resp.Diagnostics.AddError("Validation Error", errMsg)
+				fmt.Println(errMsg)
+				return
+			}
+		} else if ruleType == "path" || ruleType == "directory" {
+			if !strings.HasPrefix(rulePath, "/") {
+				errMsg := fmt.Sprintf(
+					"Validation Error in rule[%d]: When 'rule_type' is '%s', 'rule_path' must start with '/'. Got: %s",
+					i, ruleType, rulePath,
+				)
+				resp.Diagnostics.AddError("Validation Error", errMsg)
+				fmt.Println(errMsg)
+				return
+			}
+			// Validate 'rule_path' does not end with '/'
+			if strings.HasSuffix(rulePath, "/") {
+				errMsg := fmt.Sprintf(
+					"Validation Error in rule[%d]: When 'rule_type' is '%s', 'rule_path' cannot end with '/'. Got: %s",
+					i, ruleType, rulePath,
+				)
+				resp.Diagnostics.AddError("Validation Error", errMsg)
+				fmt.Println(errMsg)
+				return
+			}
+		} else if ruleType == "index" {
+			if rulePath != "/" {
+				errMsg := fmt.Sprintf(
+					"Validation Error in rule[%d]: When 'rule_type' is 'index', 'rule_path' must be exactly '/'. Got: %s",
+					i, rulePath,
+				)
+				resp.Diagnostics.AddError("Validation Error", errMsg)
+				fmt.Println(errMsg)
+				return
+			}
+		} else {
+			fmt.Printf("Skipping validation for rule[%d]: Unsupported rule_type '%s'.\n", i, ruleType)
+		}
 	}
 
 }
@@ -358,7 +406,6 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 				Regex:      common.BoolPtr(true),
 				FullMatch:  common.BoolPtr(false),
 			})
-
 		} else if rule.RuleType.ValueString() == "directory" {
 			formattedPath := rule.RulePath.ValueString() + "/*"
 			formattedForwardUri := rule.RulePath.ValueString() + "/$1"
@@ -370,7 +417,6 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 				Regex:      common.BoolPtr(true),
 				FullMatch:  common.BoolPtr(false),
 			})
-
 		} else if rule.RuleType.ValueString() == "path" {
 			pathRule = append(pathRule, &tencentCloudCdnClient.PathRule{
 				Path:       common.StringPtr(rule.RulePath.ValueString()),
@@ -378,6 +424,14 @@ func buildConditionalOriginRequest(plan *cdnConditionalOriginResourceModel, orig
 				ForwardUri: common.StringPtr(rule.RulePath.ValueString()),
 				Regex:      common.BoolPtr(false),
 				FullMatch:  common.BoolPtr(true),
+			})
+		} else if rule.RuleType.ValueString() == "index" {
+			pathRule = append(pathRule, &tencentCloudCdnClient.PathRule{
+				Path:       common.StringPtr("/"),
+				ServerName: common.StringPtr(rule.Origin.ValueString()),
+				ForwardUri: common.StringPtr("/"),
+				Regex:      common.BoolPtr(true),
+				FullMatch:  common.BoolPtr(false),
 			})
 		}
 	}
@@ -481,7 +535,7 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 	var result []originStruct
 	for _, domain := range response.Response.Domains {
 		origin := originStruct{
-			OriginList:         types.StringValue(convertStringPointersToString(domain.Origin.Origins)),
+			OriginList:         types.StringValue(strings.Join(common.StringValues(domain.Origin.Origins), ",")),
 			OriginType:         types.StringValue(*domain.Origin.OriginType),
 			ServerName:         types.StringValue(*domain.Origin.ServerName),
 			OriginPullProtocol: types.StringValue(*domain.Origin.OriginPullProtocol),

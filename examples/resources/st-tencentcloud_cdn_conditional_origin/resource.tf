@@ -18,4 +18,10 @@ resource "st-tencentcloud_cdn_conditional_origin" "cdn_conditional_origin" {
     rule_type = "path"
     rule_path = "/example/oren.jpg"
   }
+
+  rule {
+    origin    = "google.com"
+    rule_type = "index"
+    rule_path = "/"
+  }
 }
