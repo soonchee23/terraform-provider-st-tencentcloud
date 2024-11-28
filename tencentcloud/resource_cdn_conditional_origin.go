@@ -170,7 +170,7 @@ func (r *cdnConditionalOriginResource) Read(ctx context.Context, req resource.Re
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
+	reconnectBackoff.MaxElapsedTime = 30 * time.Minute
 	err := backoff.Retry(describeDomainsConfig, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -236,6 +236,9 @@ func (r *cdnConditionalOriginResource) Delete(ctx context.Context, req resource.
 		return
 	}
 
+	/* The reason for using UpdateDomainConfig is that Tencent Cloud only provides UpdateDomainConfig to remove
+	path-based origin rules or path rules; they only have a separate DeleteScdnDomain function exclusively for deleting an entire
+	domain name, not only remove path based origin rule or path rules.*/
 	deleteConditionalOriginRequest.Origin.PathBasedOrigin = nil
 	deleteConditionalOriginRequest.Origin.PathRules = nil
 	if _, err := r.client.UpdateDomainConfig(deleteConditionalOriginRequest); err != nil {
@@ -352,7 +355,7 @@ func (d *cdnConditionalOriginResource) updateDomainConfig(plan *cdnConditionalOr
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
+	reconnectBackoff.MaxElapsedTime = 30 * time.Minute
 	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
 	if err != nil {
 		return fmt.Errorf("failed to update conditional origin: %w", err)
@@ -521,7 +524,7 @@ func fetchAndMapDomainConfig(d *cdnConditionalOriginResource, plan *cdnCondition
 	}
 
 	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 5 * time.Minute
+	reconnectBackoff.MaxElapsedTime = 30 * time.Minute
 
 	err := backoff.Retry(describeCdnDomain, reconnectBackoff)
 	if err != nil {
