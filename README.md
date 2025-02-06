@@ -58,9 +58,17 @@ scenario. The reason behind every resources and data sources are stated as below
   The official TencentCloud Terraform provider does not have
   the resource to enforce MFA for login.
 
-  - **st-tencentcloud_cdn_path_based_rule**
+- **st-tencentcloud_cdn_path_based_rule**
+
   The official TencentCloud Terraform provider's resource (https://registry.terraform.io/providers/tencentcloudstack/tencentcloud/latest/docs/resources/cdn_domain)
   does not support adding path-based rules in CDN.
+
+
+- **st-tencentcloud_cdn_cls_log_topic**
+
+  The official TencentCloud Terraform provider does not have the resource to
+  create CDN CLS log topic.
+
 
 ### Data Sources
 
