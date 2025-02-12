@@ -307,9 +307,8 @@ func (r *cdnRealTimeLogResource) Delete(ctx context.Context, req resource.Delete
 }
 
 func (r *cdnRealTimeLogResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	var area, topicId string
+	var area, topicId, logsetId string
 	var err error
-	var logsetId string
 
 	area, topicId, err = parseImportID(req.ID)
 	if err != nil {
@@ -317,11 +316,12 @@ func (r *cdnRealTimeLogResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
+	logsetId = getLogsetId(area)
 	listClsTopicDomainsRequest := tencentCloudCdnClient.NewListClsTopicDomainsRequest()
-	listClsTopicDomainsRequest.LogsetId = common.StringPtr(getLogsetId(area))
+	listClsTopicDomainsRequest.LogsetId = common.StringPtr(logsetId)
 	listClsTopicDomainsRequest.TopicId = common.StringPtr(topicId)
 	listClsTopicDomainsRequest.Channel = common.StringPtr("cdn")
-
+	
 	var listClsTopicDomainsResponse *tencentCloudCdnClient.ListClsTopicDomainsResponse
 	var topicName string
 	var domainList types.List
@@ -354,9 +354,7 @@ func (r *cdnRealTimeLogResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 
-	if listClsTopicDomainsResponse.Response.TopicName != nil {
-		topicName = *listClsTopicDomainsResponse.Response.TopicName
-	}
+	topicName = *listClsTopicDomainsResponse.Response.TopicName
 
 	if len(listClsTopicDomainsResponse.Response.DomainAreaConfigs) > 0 {
 		var domains []attr.Value
