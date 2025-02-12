@@ -240,6 +240,6 @@ func (p *tencentCloudProvider) Resources(_ context.Context) []func() resource.Re
 		NewCamUserGroupAttachmentResource,
 		NewCamMfaDeviceResource,
 		NewCdnPathBasedRuleResource,
-		NewCdnClsLogTopicResource,
+		NewCdnRealTimeLogResource,
 	}
 }
