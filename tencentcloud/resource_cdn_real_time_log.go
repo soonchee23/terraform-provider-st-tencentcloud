@@ -70,6 +70,11 @@ func (r *cdnRealTimeLogResource) Schema(_ context.Context, _ resource.SchemaRequ
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
+			"domains": schema.ListAttribute{
+				Description: "The domain name associated with this log configuration.",
+				Required:    true,
+				ElementType: types.StringType,
+			},
 			"topic_id": schema.StringAttribute{
 				Description: "The unique identifier of the CDN Real Time Log, assigned by Tencent Cloud.",
 				Computed:    true,
@@ -77,11 +82,6 @@ func (r *cdnRealTimeLogResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"logset_id": schema.StringAttribute{
 				Description: "The ID of the CDN Real Time Log logset where the log topic is stored.",
 				Computed:    true,
-			},
-			"domains": schema.ListAttribute{
-				Description: "The domain name associated with this log configuration.",
-				Required:    true,
-				ElementType: types.StringType,
 			},
 		},
 	}
@@ -97,7 +97,6 @@ func (r *cdnRealTimeLogResource) Configure(_ context.Context, req resource.Confi
 func (r *cdnRealTimeLogResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// If the entire plan is null, the resource is planned for destruction.
 	if req.Plan.Raw.IsNull() {
-		fmt.Println("Plan is null; skipping ModifyPlan.")
 		return
 	}
 
@@ -321,7 +320,7 @@ func (r *cdnRealTimeLogResource) ImportState(ctx context.Context, req resource.I
 	listClsTopicDomainsRequest.LogsetId = common.StringPtr(logsetId)
 	listClsTopicDomainsRequest.TopicId = common.StringPtr(topicId)
 	listClsTopicDomainsRequest.Channel = common.StringPtr("cdn")
-	
+
 	var listClsTopicDomainsResponse *tencentCloudCdnClient.ListClsTopicDomainsResponse
 	var topicName string
 	var domainList types.List
