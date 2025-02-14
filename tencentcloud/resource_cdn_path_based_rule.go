@@ -186,7 +186,7 @@ func (r *cdnPathBasedRuleResource) Read(ctx context.Context, req resource.ReadRe
 		_, err := r.client.DescribeDomainsConfig(describeDomainsConfigRequest)
 		if err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(t.GetCode()) {
+				if isRetryableErrCode(t.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)
@@ -287,7 +287,7 @@ func (d *cdnPathBasedRuleResource) updateDomainConfig(plan *cdnPathBasedRuleReso
 	updateDomainConfig := func() error {
 		_, err := d.client.UpdateDomainConfig(updateDomainConfigRequest)
 		if err != nil {
-			if t, ok := err.(*errors.TencentCloudSDKError); ok && isAbleToRetry(t.GetCode()) {
+			if t, ok := err.(*errors.TencentCloudSDKError); ok && isRetryableErrCode(t.GetCode()) {
 				return err
 			}
 			return backoff.Permanent(err)

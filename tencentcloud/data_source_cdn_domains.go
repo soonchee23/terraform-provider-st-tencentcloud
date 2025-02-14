@@ -448,7 +448,7 @@ func (d *cdnDomainsDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		response, err = d.client.DescribeDomainsConfig(request)
 		if err != nil {
 			if terr, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(terr.GetCode()) {
+				if isRetryableErrCode(terr.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)

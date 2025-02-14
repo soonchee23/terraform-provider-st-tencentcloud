@@ -2,7 +2,7 @@
 name: Release
 
 # This GitHub action creates a release when a tag that matches the pattern
-# "v*" (e.g. v0.1.0) is created.
+# 'v*' (e.g. v0.1.0) is created.
 on:
   push:
     tags:
@@ -32,7 +32,7 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.PASSPHRASE }}
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@5742e2a039330cbb23ebf35f046f814d4c6ff811 # v5.1.0
+        uses: goreleaser/goreleaser-action@v6 # v6.1.0
         with:
           args: release --clean
         env:

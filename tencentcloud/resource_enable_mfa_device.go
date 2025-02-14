@@ -103,7 +103,7 @@ func (r *camMfaDeviceResource) Read(ctx context.Context, req resource.ReadReques
 		_, err := r.client.DescribeSafeAuthFlagColl(describeSafeAuthFlagRequest)
 		if err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(t.GetCode()) {
+				if isRetryableErrCode(t.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)
@@ -174,7 +174,7 @@ func (r *camMfaDeviceResource) setMfaFlag(plan *camMfaDeviceResourceModel) (err 
 	setMfaFlag := func() error {
 		if _, err := r.client.SetMfaFlag(setMfaFlagRequest); err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(t.GetCode()) {
+				if isRetryableErrCode(t.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)

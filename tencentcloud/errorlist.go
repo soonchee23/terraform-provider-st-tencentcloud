@@ -7,9 +7,11 @@ const (
 	ERR_CLB_RESOURCE_INSUFFICIENT = "ResourceInsufficient"
 	ERR_INTERNAL_ERROR            = "InternalServerError"
 	ERR_REQUEST_LIMIT_EXCEEDED    = "RequestLimitExceeded"
+
+	ERR_MSG_FREQ_CONTROLLER = "freq controller"
 )
 
-func isAbleToRetry(errCode string) bool {
+func isRetryableErrCode(errCode string) bool {
 	switch errCode {
 	case
 		ERR_CLB_DRY_RUN_OPERATION,
@@ -22,4 +24,14 @@ func isAbleToRetry(errCode string) bool {
 		return false
 	}
 	// return false
+}
+
+func isRetryableErrMessage(errorMessage string) bool {
+	switch errorMessage {
+	case
+		ERR_MSG_FREQ_CONTROLLER:
+		return true
+	default:
+		return false
+	}
 }

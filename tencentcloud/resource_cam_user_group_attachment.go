@@ -104,7 +104,7 @@ func (r *camUserGroupAttachmentResource) Read(ctx context.Context, req resource.
 		listUserForGroupResponse, err := r.client.ListUsersForGroup(listUserForGroupRequest)
 		if err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(t.GetCode()) {
+				if isRetryableErrCode(t.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)
@@ -205,7 +205,7 @@ func (r *camUserGroupAttachmentResource) addUserToGroup(plan *camUserGroupAttach
 	addUserToGroup := func() error {
 		if _, err := r.client.AddUserToGroup(addUserToGroupRequest); err != nil {
 			if t, ok := err.(*errors.TencentCloudSDKError); ok {
-				if isAbleToRetry(t.GetCode()) {
+				if isRetryableErrCode(t.GetCode()) {
 					return err
 				} else {
 					return backoff.Permanent(err)

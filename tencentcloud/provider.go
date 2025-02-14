@@ -237,6 +237,7 @@ func (p *tencentCloudProvider) DataSources(_ context.Context) []func() datasourc
 
 func (p *tencentCloudProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		NewCamPolicyResource,
 		NewCamUserGroupAttachmentResource,
 		NewCamMfaDeviceResource,
 		NewCdnPathBasedRuleResource,
